@@ -113,8 +113,10 @@ if (isset($_POST['is_ajax'])) {
                     $response['success'] = true;
                     $response['state'] = $statusResponse->state;
                     $response['error'] = null;
+                } elseif (isset($statusResponse->error->message)) {
+                    $response['error'] = 'Google API Error: ' . htmlspecialchars($statusResponse->error->message);
                 } else {
-                    $response['error'] = 'Could not retrieve file processing status.';
+                    $response['error'] = 'Could not retrieve file processing status. The response from Google was unexpected.';
                 }
             }
             break;
