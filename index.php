@@ -133,10 +133,12 @@ if (isset($_POST['is_ajax'])) {
             $response['error'] = "Failed to get a response from the model. Response: " . htmlspecialchars($modelResult['body']);
         } else {
             $modelResponse = json_decode($modelResult['body']);
-            if (isset($modelResponse->candidates[0]->content->parts[0]->text)) {
+            if (!empty($modelResponse->candidates[0]->content->parts[0]->text)) {
                 $response['success'] = true;
                 $response['responseText'] = $modelResponse->candidates[0]->content->parts[0]->text;
                 $response['error'] = null;
+            } elseif (empty($modelResponse->candidates[0]->content->parts)) {
+                $response['error'] = "The model processed the request but did not return any text. This can happen due to the model's safety filters or if the video content is invalid or unsupported.";
             } else {
                 $response['error'] = "Could not find generated text in the model's response. Raw response: " . htmlspecialchars(print_r($modelResponse, true));
             }
