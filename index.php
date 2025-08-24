@@ -47,129 +47,119 @@ function executeCurl(string $url, array $options, bool $returnHeaders = false): 
 if (isset($_POST['is_ajax'])) {
     // --- API LOGIC (Handles AJAX requests) ---
     header('Content-Type: application/json');
-    $response = ['success' => false, 'error' => 'An unknown error occurred.', 'responseText' => null];
+    $action = $_POST['action'] ?? '';
+    $response = ['success' => false, 'error' => 'An unknown error occurred.'];
 
-    // --- Get and validate data from form ---
+    // --- Common validation ---
     $apiKey = $_POST['apiKey'] ?? '';
-    $_SESSION['apiKey'] = $apiKey;
-
-    $submittedModel = $_POST['model'] ?? 'gemini-1.5-flash';
-    if (array_key_exists($submittedModel, $allowedModels)) {
-        $selectedModel = $submittedModel;
-        $_SESSION['selectedModel'] = $selectedModel;
-    } else {
-        $selectedModel = 'gemini-1.5-flash'; // Default
-    }
-
     if (empty($apiKey)) {
         $response['error'] = 'API Key Error: Please provide your Google AI API key.';
         echo json_encode($response);
         exit();
     }
+    $_SESSION['apiKey'] = $apiKey;
 
-    if (!isset($_FILES['videoFile']) || $_FILES['videoFile']['error'] !== UPLOAD_ERR_OK) {
-        $uploadError = $_FILES['videoFile']['error'] ?? UPLOAD_ERR_NO_FILE;
-        $errors = [
-            UPLOAD_ERR_INI_SIZE => 'The uploaded file exceeds the upload_max_filesize directive in php.ini.',
-            UPLOAD_ERR_FORM_SIZE => 'The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form.',
-            UPLOAD_ERR_PARTIAL => 'The uploaded file was only partially uploaded.',
-            UPLOAD_ERR_NO_FILE => 'No file was uploaded.',
-            UPLOAD_ERR_NO_TMP_DIR => 'Missing a temporary folder.',
-            UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk.',
-            UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the file upload.',
-        ];
-        $response['error'] = 'File Upload Error: ' . ($errors[$uploadError] ?? 'Unknown error');
-        echo json_encode($response);
-        exit();
-    }
 
-    $videoFilePath = $_FILES['videoFile']['tmp_name'];
-    $prompt = $_POST['prompt'] ?? 'Describe this video.';
-    $fileSizeBytes = $_FILES['videoFile']['size'];
-    $mimeType = $_FILES['videoFile']['type'];
-
-    $tenMB = 10 * 1024 * 1024;
-    $uploadMethod = ($fileSizeBytes < $tenMB) ? 'inline' : 'resumable';
-
-    $fileDataPayload = null;
-    $fileUri = null;
-
-    // --- Upload Logic ---
-    if ($uploadMethod === 'resumable') {
-        $startUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key={$apiKey}";
-        $startHeaders = ['X-Goog-Upload-Protocol: resumable', 'X-Goog-Upload-Command: start', "X-Goog-Upload-Header-Content-Length: {$fileSizeBytes}", "X-Goog-Upload-Header-Content-Type: {$mimeType}", 'Content-Type: application/json'];
-        $startPayload = json_encode(['file' => ['display_name' => basename($_FILES['videoFile']['name'])]]);
-        $startResult = executeCurl($startUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $startPayload, CURLOPT_HTTPHEADER => $startHeaders, CURLOPT_RETURNTRANSFER => true], true);
-
-        if ($startResult['httpCode'] !== 200 || empty($startResult['headers']['x-goog-upload-url'][0])) {
-            $response['error'] = "Could not get resumable upload URL. Response: " . htmlspecialchars($startResult['body']);
-        } else {
-            $uploadUrl = $startResult['headers']['x-goog-upload-url'][0];
-            $uploadHeaders = ["Content-Type: {$mimeType}", "Content-Length: {$fileSizeBytes}", 'X-Goog-Upload-Offset: 0', 'X-Goog-Upload-Command: upload, finalize'];
-            $uploadResult = executeCurl($uploadUrl, [CURLOPT_CUSTOMREQUEST => 'POST', CURLOPT_POSTFIELDS => file_get_contents($videoFilePath), CURLOPT_HTTPHEADER => $uploadHeaders, CURLOPT_RETURNTRANSFER => true]);
-
-            if ($uploadResult['httpCode'] !== 200) {
-                $response['error'] = "Failed to upload video data. Response: " . htmlspecialchars($uploadResult['body']);
+    switch ($action) {
+        case 'upload':
+            if (!isset($_FILES['videoFile']) || $_FILES['videoFile']['error'] !== UPLOAD_ERR_OK) {
+                 $uploadError = $_FILES['videoFile']['error'] ?? UPLOAD_ERR_NO_FILE;
+                 $errors = [ /* ... error mapping ... */ ];
+                 $response['error'] = 'File Upload Error: ' . ($errors[$uploadError] ?? 'Unknown error');
             } else {
-                $uploadResponse = json_decode($uploadResult['body']);
-                if (!isset($uploadResponse->file->uri)) {
-                    $response['error'] = 'File URI not found in the final upload response.';
+                $videoFilePath = $_FILES['videoFile']['tmp_name'];
+                $fileSizeBytes = $_FILES['videoFile']['size'];
+                $mimeType = $_FILES['videoFile']['type'];
+
+                // For this workflow, we will only support resumable uploads as they are required for polling.
+                $startUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key={$apiKey}";
+                $startHeaders = ['X-Goog-Upload-Protocol: resumable', 'X-Goog-Upload-Command: start', "X-Goog-Upload-Header-Content-Length: {$fileSizeBytes}", "X-Goog-Upload-Header-Content-Type: {$mimeType}", 'Content-Type: application/json'];
+                $startPayload = json_encode(['file' => ['display_name' => basename($_FILES['videoFile']['name'])]]);
+                $startResult = executeCurl($startUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $startPayload, CURLOPT_HTTPHEADER => $startHeaders, CURLOPT_RETURNTRANSFER => true], true);
+
+                if ($startResult['httpCode'] !== 200 || empty($startResult['headers']['x-goog-upload-url'][0])) {
+                    $response['error'] = "Could not get resumable upload URL. Response: " . htmlspecialchars($startResult['body']);
                 } else {
-                    $fileUri = $uploadResponse->file->uri;
+                    $uploadUrl = $startResult['headers']['x-goog-upload-url'][0];
+                    $uploadHeaders = ["Content-Type: {$mimeType}", "Content-Length: {$fileSizeBytes}", 'X-Goog-Upload-Offset: 0', 'X-Goog-Upload-Command: upload, finalize'];
+                    $uploadResult = executeCurl($uploadUrl, [CURLOPT_CUSTOMREQUEST => 'POST', CURLOPT_POSTFIELDS => file_get_contents($videoFilePath), CURLOPT_HTTPHEADER => $uploadHeaders, CURLOPT_RETURNTRANSFER => true]);
+
+                    if ($uploadResult['httpCode'] !== 200) {
+                        $response['error'] = "Failed to upload video data. Response: " . htmlspecialchars($uploadResult['body']);
+                    } else {
+                        $uploadResponse = json_decode($uploadResult['body']);
+                        if (!isset($uploadResponse->file->uri)) {
+                            $response['error'] = 'File URI not found in the final upload response.';
+                        } else {
+                            $response['success'] = true;
+                            $response['fileUri'] = $uploadResponse->file->uri;
+                            $response['error'] = null;
+                        }
+                    }
                 }
             }
-        }
-    } else { // Inline upload is not recommended for videos that need processing, but we handle it.
-        $base64Video = base64_encode(file_get_contents($videoFilePath));
-        // This path does not support polling as there is no file URI.
-        $fileDataPayload = ['inlineData' => ['mimeType' => $mimeType, 'data' => $base64Video]];
-    }
+            break;
 
-    // --- Polling for ACTIVE state (only for resumable uploads) ---
-    if ($fileUri) {
-        $fileIsActive = false;
-        $maxRetries = 30; // Timeout after 2.5 minutes (30 * 5 seconds)
-        for ($i = 0; $i < $maxRetries; $i++) {
-            $statusUrl = "https://generativelanguage.googleapis.com/v1beta/{$fileUri}?key={$apiKey}";
-            $statusResult = executeCurl($statusUrl, [CURLOPT_HTTPGET => true, CURLOPT_RETURNTRANSFER => true]);
-            $statusResponse = json_decode($statusResult['body']);
-
-            if (isset($statusResponse->state) && $statusResponse->state === 'ACTIVE') {
-                $fileIsActive = true;
-                $fileDataPayload = ['fileData' => ['mimeType' => $mimeType, 'fileUri' => $fileUri]];
-                break;
-            } elseif (isset($statusResponse->state) && $statusResponse->state === 'FAILED') {
-                $response['error'] = 'Video processing failed on the server.';
-                break;
-            }
-            sleep(5);
-        }
-
-        if (!$fileIsActive && !isset($response['error'])) {
-            $response['error'] = 'File processing timed out. The video may be too long or complex. Please try again later.';
-        }
-    }
-
-    // --- Content Generation ---
-    if ($fileDataPayload) {
-        $modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$selectedModel}:generateContent?key={$apiKey}";
-        $modelPayload = json_encode(['contents' => [['parts' => [['text' => $prompt], $fileDataPayload]]]]);
-        $modelResult = executeCurl($modelUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $modelPayload, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json']]);
-
-        if ($modelResult['httpCode'] !== 200) {
-            $response['error'] = "Failed to get a response from the model. Response: " . htmlspecialchars($modelResult['body']);
-        } else {
-            $modelResponse = json_decode($modelResult['body']);
-            if (!empty($modelResponse->candidates[0]->content->parts[0]->text)) {
-                $response['success'] = true;
-                $response['responseText'] = $modelResponse->candidates[0]->content->parts[0]->text;
-                $response['error'] = null;
-            } elseif (empty($modelResponse->candidates[0]->content->parts)) {
-                $response['error'] = "The model processed the request but did not return any text. This can happen due to the model's safety filters or if the video content is invalid or unsupported.";
+        case 'check_status':
+            $fileUri = $_POST['fileUri'] ?? '';
+            if (empty($fileUri)) {
+                $response['error'] = 'File URI not provided for status check.';
             } else {
-                $response['error'] = "Could not find generated text in the model's response. Raw response: " . htmlspecialchars(print_r($modelResponse, true));
+                $statusUrl = "https://generativelanguage.googleapis.com/v1beta/{$fileUri}?key={$apiKey}";
+                $statusResult = executeCurl($statusUrl, [CURLOPT_HTTPGET => true, CURLOPT_RETURNTRANSFER => true]);
+                $statusResponse = json_decode($statusResult['body']);
+
+                if (isset($statusResponse->state)) {
+                    $response['success'] = true;
+                    $response['state'] = $statusResponse->state;
+                    $response['error'] = null;
+                } else {
+                    $response['error'] = 'Could not retrieve file processing status.';
+                }
             }
-        }
+            break;
+
+        case 'get_result':
+            $fileUri = $_POST['fileUri'] ?? '';
+            $prompt = $_POST['prompt'] ?? '';
+            $mimeType = $_POST['mimeType'] ?? '';
+
+            $submittedModel = $_POST['model'] ?? 'gemini-1.5-flash';
+             if (array_key_exists($submittedModel, $allowedModels)) {
+                $selectedModel = $submittedModel;
+                $_SESSION['selectedModel'] = $selectedModel;
+            } else {
+                $selectedModel = 'gemini-1.5-flash';
+            }
+
+            if (empty($fileUri) || empty($prompt) || empty($mimeType)) {
+                $response['error'] = 'Missing required data for generating content.';
+            } else {
+                $fileDataPayload = ['fileData' => ['mimeType' => $mimeType, 'fileUri' => $fileUri]];
+                $modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$selectedModel}:generateContent?key={$apiKey}";
+                $modelPayload = json_encode(['contents' => [['parts' => [['text' => $prompt], $fileDataPayload]]]]);
+                $modelResult = executeCurl($modelUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $modelPayload, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json']]);
+
+                if ($modelResult['httpCode'] !== 200) {
+                    $response['error'] = "Failed to get a response from the model. Response: " . htmlspecialchars($modelResult['body']);
+                } else {
+                    $modelResponse = json_decode($modelResult['body']);
+                    if (!empty($modelResponse->candidates[0]->content->parts[0]->text)) {
+                        $response['success'] = true;
+                        $response['responseText'] = $modelResponse->candidates[0]->content->parts[0]->text;
+                        $response['error'] = null;
+                    } elseif (empty($modelResponse->candidates[0]->content->parts)) {
+                        $response['error'] = "The model processed the request but did not return any text. This can happen due to the model's safety filters or if the video content is invalid or unsupported.";
+                    } else {
+                        $response['error'] = "Could not find generated text in the model's response. Raw response: " . htmlspecialchars(print_r($modelResponse, true));
+                    }
+                }
+            }
+            break;
+
+        default:
+            $response['error'] = 'Invalid action specified.';
+            break;
     }
 
     echo json_encode($response);
@@ -336,6 +326,7 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
         const btnSpinner = document.getElementById('btn-spinner');
         const toastContainer = document.querySelector('.toast-container');
         let lastResponseText = '';
+        let pollingInterval;
 
         function showToast(message, type = 'info') {
             const toastId = 'toast-' + Date.now();
@@ -364,57 +355,121 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
             toast.show();
         }
 
+        function resetUI() {
+            btnText.textContent = 'Analyze Video';
+            btnSpinner.classList.add('d-none');
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('d-none');
+            downloadBtn.classList.add('d-none');
+            if(pollingInterval) clearInterval(pollingInterval);
+        }
+
+        async function checkStatus(fileUri, apiKey, mimeType, prompt, model) {
+            let retries = 0;
+            const maxRetries = 30; // ~2.5 minutes
+
+            pollingInterval = setInterval(async () => {
+                retries++;
+                if (retries > maxRetries) {
+                    clearInterval(pollingInterval);
+                    showToast('Error: File processing timed out.', 'danger');
+                    resetUI();
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('is_ajax', '1');
+                formData.append('action', 'check_status');
+                formData.append('fileUri', fileUri);
+                formData.append('apiKey', apiKey);
+
+                try {
+                    const response = await fetch('index.php', { method: 'POST', body: formData });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.state === 'ACTIVE') {
+                            clearInterval(pollingInterval);
+                            showToast('Video processing complete! Generating narration...', 'success');
+                            getResult(fileUri, apiKey, mimeType, prompt, model);
+                        } else if (result.state === 'FAILED') {
+                            clearInterval(pollingInterval);
+                            showToast('Error: Video processing failed on the server.', 'danger');
+                            resetUI();
+                        }
+                        // If still PROCESSING, the interval will just continue
+                    } else {
+                        throw new Error(result.error);
+                    }
+                } catch (error) {
+                    clearInterval(pollingInterval);
+                    showToast(`Error checking status: ${error.message}`, 'danger');
+                    resetUI();
+                }
+            }, 5000);
+        }
+
+        async function getResult(fileUri, apiKey, mimeType, prompt, model) {
+             const formData = new FormData();
+            formData.append('is_ajax', '1');
+            formData.append('action', 'get_result');
+            formData.append('fileUri', fileUri);
+            formData.append('apiKey', apiKey);
+            formData.append('mimeType', mimeType);
+            formData.append('prompt', prompt);
+            formData.append('model', model);
+
+            try {
+                const response = await fetch('index.php', { method: 'POST', body: formData });
+                const result = await response.json();
+                if (result.success) {
+                    lastResponseText = result.responseText;
+                    submitBtn.classList.add('d-none');
+                    downloadBtn.classList.remove('d-none');
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                showToast(`Error generating result: ${error.message}`, 'danger');
+            } finally {
+                resetUI();
+            }
+        }
+
+
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            // --- 1. Set loading state ---
-            lastResponseText = '';
-            downloadBtn.classList.add('d-none');
-            submitBtn.classList.remove('d-none');
-            btnText.textContent = 'Analyzing...';
+            // --- 1. Set loading state & get initial data ---
+            resetUI();
+            btnText.textContent = 'Uploading...';
             btnSpinner.classList.remove('d-none');
             submitBtn.disabled = true;
 
-            showToast('Processing your video, please wait...', 'info');
-
-            // --- 2. Prepare form data ---
             const formData = new FormData(form);
             formData.append('is_ajax', '1');
+            formData.append('action', 'upload');
 
-            let success = false;
+            const apiKey = form.querySelector('#apiKey').value;
+            const mimeType = form.querySelector('#videoFile').files[0]?.type;
+            const prompt = form.querySelector('#prompt').value;
+            const model = form.querySelector('#model').value;
+
             try {
-                // --- 3. Fetch results ---
-                const response = await fetch('index.php', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-
+                showToast('Uploading video file...', 'info');
+                const response = await fetch('index.php', { method: 'POST', body: formData });
                 const result = await response.json();
 
-                // --- 4. Handle response ---
-                if (result.success && result.responseText) {
-                    showToast('Analysis successful!', 'success');
-                    lastResponseText = result.responseText;
-                    success = true;
+                if (result.success && result.fileUri) {
+                    showToast('File uploaded successfully. Video is now processing...', 'info');
+                    btnText.textContent = 'Processing...'; // Update button text
+                    checkStatus(result.fileUri, apiKey, mimeType, prompt, model);
                 } else {
-                    throw new Error(result.error || 'An unknown error occurred.');
+                    throw new Error(result.error || 'Upload failed.');
                 }
-
             } catch (error) {
-                showToast(`<strong>Error:</strong> ${error.message}`, 'danger');
-            } finally {
-                // --- 5. Reset button state ---
-                if (success) {
-                    submitBtn.classList.add('d-none');
-                    downloadBtn.classList.remove('d-none');
-                }
-                btnText.textContent = 'Analyze Video';
-                btnSpinner.classList.add('d-none');
-                submitBtn.disabled = false;
+                showToast(`Upload Error: ${error.message}`, 'danger');
+                resetUI();
             }
         });
 
