@@ -88,11 +88,11 @@ if (isset($_POST['is_ajax'])) {
                         $response['error'] = "Failed to upload video data. Response: " . htmlspecialchars($uploadResult['body']);
                     } else {
                         $uploadResponse = json_decode($uploadResult['body']);
-                        if (!isset($uploadResponse->file->uri)) {
-                            $response['error'] = 'File URI not found in the final upload response.';
+                        if (!isset($uploadResponse->file->name)) {
+                            $response['error'] = 'File Name identifier not found in the final upload response.';
                         } else {
                             $response['success'] = true;
-                            $response['fileUri'] = $uploadResponse->file->uri;
+                            $response['fileUri'] = $uploadResponse->file->name; // Use the 'name' not the 'uri'
                             $response['error'] = null;
                         }
                     }
