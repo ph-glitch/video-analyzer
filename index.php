@@ -80,13 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
     $uploadMethod = ($fileSizeBytes < $tenMB) ? 'inline' : 'resumable';
     $fileSizeMB = $fileSizeBytes / (1024 * 1024);
 
-    $resultOutput .= "<h3>Processing Request...</h3>";
-    $resultOutput .= "<ul>";
-    $resultOutput .= "<li>Original File: {$originalFileName}</li>";
-    $resultOutput .= "<li>File Size: " . number_format($fileSizeMB, 2) . " MB</li>";
-    $resultOutput .= "<li>MIME Type: {$mimeType}</li>";
-    $resultOutput .= "<li>Upload Method: {$uploadMethod}</li>";
-    $resultOutput .= "</ul><hr>";
+    $resultOutput .= "<h5>Processing Details:</h5>";
+    $resultOutput .= "<ul class='list-group mb-3'>";
+    $resultOutput .= "<li class='list-group-item'><b>Original File:</b> {$originalFileName}</li>";
+    $resultOutput .= "<li class='list-group-item'><b>File Size:</b> " . number_format($fileSizeMB, 2) . " MB</li>";
+    $resultOutput .= "<li class='list-group-item'><b>MIME Type:</b> {$mimeType}</li>";
+    $resultOutput .= "<li class='list-group-item'><b>Upload Method:</b> <span class='badge bg-secondary'>{$uploadMethod}</span></li>";
+    $resultOutput .= "</ul>";
 
     $fileDataPayload = null;
     $errorOccurred = false;
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
     // --- Main Logic: Choose Upload Path ---
     if ($uploadMethod === 'resumable') {
         // --- Method 1: Resumable Upload ---
-        $resultOutput .= "<p><strong>Step 1.1:</strong> Initializing resumable upload...</p>";
+        $resultOutput .= "<div class='alert alert-info'>Step 1.1: Initializing resumable upload...</div>";
         
         $startUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key={$apiKey}";
         $startHeaders = [
@@ -109,11 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
         $startResult = executeCurl($startUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $startPayload, CURLOPT_HTTPHEADER => $startHeaders, CURLOPT_RETURNTRANSFER => true], true);
 
         if ($startResult['httpCode'] !== 200 || empty($startResult['headers']['x-goog-upload-url'][0])) {
-            $resultOutput .= "<p class='error'><strong>Error:</strong> Could not get the resumable upload URL. Response: " . htmlspecialchars($startResult['body']) . "</p>";
+            $resultOutput .= "<div class='alert alert-danger'><strong>Error:</strong> Could not get the resumable upload URL. Response: " . htmlspecialchars($startResult['body']) . "</div>";
             $errorOccurred = true;
         } else {
             $uploadUrl = $startResult['headers']['x-goog-upload-url'][0];
-            $resultOutput .= "<p><strong>Step 1.2:</strong> Uploading video data...</p>";
+            $resultOutput .= "<div class='alert alert-info'>Step 1.2: Uploading video data...</div>";
 
             $uploadHeaders = [
                 "Content-Type: {$mimeType}",
@@ -124,47 +124,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
             $uploadResult = executeCurl($uploadUrl, [CURLOPT_CUSTOMREQUEST => 'POST', CURLOPT_POSTFIELDS => file_get_contents($videoFilePath), CURLOPT_HTTPHEADER => $uploadHeaders, CURLOPT_RETURNTRANSFER => true]);
 
             if ($uploadResult['httpCode'] !== 200) {
-                $resultOutput .= "<p class='error'><strong>Error:</strong> Failed to upload video data. Response: " . htmlspecialchars($uploadResult['body']) . "</p>";
+                $resultOutput .= "<div class='alert alert-danger'><strong>Error:</strong> Failed to upload video data. Response: " . htmlspecialchars($uploadResult['body']) . "</div>";
                 $errorOccurred = true;
             } else {
                 $uploadResponse = json_decode($uploadResult['body']);
                 if (!isset($uploadResponse->file->uri)) {
-                    $resultOutput .= "<p class='error'><strong>Error:</strong> File URI not found in the final upload response.</p>";
+                    $resultOutput .= "<div class='alert alert-danger'><strong>Error:</strong> File URI not found in the final upload response.</div>";
                     $errorOccurred = true;
                 } else {
                     $fileUri = $uploadResponse->file->uri;
-                    $resultOutput .= "<p><strong>Success!</strong> File uploaded. URI: {$fileUri}</p>";
+                    $resultOutput .= "<div class='alert alert-success'><strong>Success!</strong> File uploaded. URI: {$fileUri}</div>";
                     $fileDataPayload = ['fileData' => ['mimeType' => $mimeType, 'fileUri' => $fileUri]];
                 }
             }
         }
     } else {
         // --- Method 2: Inline Data Upload ---
-        $resultOutput .= "<p><strong>Step 1:</strong> Encoding video file to Base64...</p>";
+        $resultOutput .= "<div class='alert alert-info'>Step 1: Encoding video file to Base64...</div>";
         $base64Video = base64_encode(file_get_contents($videoFilePath));
         $fileDataPayload = ['inlineData' => ['mimeType' => $mimeType, 'data' => $base64Video]];
-        $resultOutput .= "<p><strong>Success!</strong> Video encoded.</p>";
+        $resultOutput .= "<div class='alert alert-success'><strong>Success!</strong> Video encoded.</div>";
     }
 
     // --- Step 2: Generate Content from Video ---
     if (!$errorOccurred) {
-        $resultOutput .= "<p><strong>Step 2:</strong> Sending prompt and video to the Gemini model...</p>";
+        $resultOutput .= "<div class='alert alert-info'>Step 2: Sending prompt and video to the Gemini model...</div>";
 
         $modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}";
         $modelPayload = json_encode(['contents' => [['parts' => [['text' => $prompt], $fileDataPayload]]]]);
         $modelResult = executeCurl($modelUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $modelPayload, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json']]);
 
         if ($modelResult['httpCode'] !== 200) {
-            $resultOutput .= "<p class='error'><strong>Error:</strong> Failed to get a response from the model. Response: " . htmlspecialchars($modelResult['body']) . "</p>";
+            $resultOutput .= "<div class='alert alert-danger'><strong>Error:</strong> Failed to get a response from the model. Response: " . htmlspecialchars($modelResult['body']) . "</div>";
         } else {
             $modelResponse = json_decode($modelResult['body']);
             if (isset($modelResponse->candidates[0]->content->parts[0]->text)) {
                 $responseText = $modelResponse->candidates[0]->content->parts[0]->text;
-                $resultOutput .= "<h3>Gemini Model Response:</h3>";
-                $resultOutput .= "<pre>" . htmlspecialchars($responseText) . "</pre>";
+                $resultOutput .= "<h5 class='mt-4'>Gemini Model Response:</h5>";
+                $resultOutput .= "<pre class='bg-dark text-white p-3 rounded'>" . htmlspecialchars($responseText) . "</pre>";
             } else {
-                $resultOutput .= "<p class='error'><strong>Error:</strong> Could not find the generated text in the model's response.</p>";
-                $resultOutput .= "<pre>" . htmlspecialchars(print_r($modelResponse, true)) . "</pre>";
+                $resultOutput .= "<div class='alert alert-warning'><strong>Warning:</strong> Could not find the generated text in the model's response.</div>";
+                $resultOutput .= "<pre class='bg-secondary text-white p-3 rounded'>" . htmlspecialchars(print_r($modelResponse, true)) . "</pre>";
             }
         }
     }
@@ -180,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
         UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk.',
         UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the file upload.',
     ];
-    $resultOutput = "<p class='error'><strong>File Upload Error:</strong> " . ($errors[$uploadError] ?? 'Unknown error') . "</p>";
+    $resultOutput = "<div class='alert alert-danger'><strong>File Upload Error:</strong> " . ($errors[$uploadError] ?? 'Unknown error') . "</div>";
 }
 ?>
 <!DOCTYPE html>
@@ -189,50 +189,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini Video Analyzer</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 20px auto; padding: 0 20px; background-color: #f4f7f9; }
-        .container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        h1, h3 { color: #1a73e8; }
-        h1 { text-align: center; border-bottom: 2px solid #e0e0e0; padding-bottom: 15px; margin-bottom: 25px; }
-        form { display: flex; flex-direction: column; gap: 20px; }
-        label { font-weight: bold; color: #555; }
-        input[type="file"], textarea { padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
-        textarea { min-height: 80px; resize: vertical; }
-        .radio-group { display: flex; align-items: center; gap: 15px; }
-        .radio-group label { font-weight: normal; }
-        button { background-color: #1a73e8; color: white; padding: 12px 20px; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
-        button:hover { background-color: #1558b3; }
-        .results { margin-top: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #fafafa; }
-        .error { color: #d93025; font-weight: bold; }
-        pre { background-color: #e8eaed; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
-        hr { border: 0; height: 1px; background-color: #e0e0e0; margin: 20px 0; }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
 </head>
-<body>
-    <div class="container">
-        <h1>Analyze Video with Gemini</h1>
-        <form action="" method="post" enctype="multipart/form-data">
-            <div>
-                <label for="apiKey">1. Your Google AI API Key:</label>
-                <input type="password" name="apiKey" id="apiKey" style="padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; width: 95%;" value="<?php echo htmlspecialchars($apiKey); ?>" required>
+<body class="bg-light-subtle">
+    <div class="container py-5" style="max-width: 800px;">
+        <div class="card shadow-sm">
+            <div class="card-header text-center bg-primary text-white">
+                <h1 class="h3 mb-0">Analyze Video with Gemini</h1>
             </div>
+            <div class="card-body p-4">
+                <form action="" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="apiKey" class="form-label">1. Your Google AI API Key:</label>
+                        <input type="password" name="apiKey" id="apiKey" class="form-control" value="<?php echo htmlspecialchars($apiKey); ?>" required>
+                    </div>
 
-            <div>
-                <label for="videoFile">2. Choose Video File:</label>
-                <input type="file" name="videoFile" id="videoFile" accept="video/*" required>
-            </div>
-            
-            <div>
-                <label for="prompt">3. Enter Your Prompt:</label>
-                <textarea name="prompt" id="prompt" required>Summarize this video. Then create a quiz with an answer key based on the information in this video.</textarea>
-            </div>
+                    <div class="mb-3">
+                        <label for="videoFile" class="form-label">2. Choose Video File:</label>
+                        <input type="file" name="videoFile" id="videoFile" class="form-control" accept="video/*" required>
+                    </div>
 
-            <button type="submit">Analyze Video</button>
-        </form>
+                    <div class="mb-3">
+                        <label for="prompt" class="form-label">3. Enter Your Prompt:</label>
+                        <textarea name="prompt" id="prompt" class="form-control" rows="4" required>Summarize this video. Then create a quiz with an answer key based on the information in this video.</textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Analyze Video</button>
+                </form>
+            </div>
+        </div>
 
         <?php if (!empty($resultOutput)): ?>
-            <div class="results">
-                <?php echo $resultOutput; ?>
+            <div class="card mt-4 shadow-sm">
+                <div class="card-body">
+                    <?php echo $resultOutput; ?>
+                </div>
             </div>
         <?php endif; ?>
     </div>
