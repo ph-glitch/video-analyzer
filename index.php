@@ -427,17 +427,21 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
             try {
                 const response = await fetch('index.php', { method: 'POST', body: formData });
                 const result = await response.json();
-                if (result.success) {
+                if (result.success && result.responseText) {
                     lastResponseText = result.responseText;
+                    // On success, hide the submit button and show the download button
                     submitBtn.classList.add('d-none');
                     downloadBtn.classList.remove('d-none');
+                    // And reset the state of the (now hidden) submit button
+                    btnText.textContent = 'Analyze Video';
+                    btnSpinner.classList.add('d-none');
+                    submitBtn.disabled = false;
                 } else {
-                    throw new Error(result.error);
+                    throw new Error(result.error || 'Failed to get result.');
                 }
             } catch (error) {
                 showToast(`Error generating result: ${error.message}`, 'danger');
-            } finally {
-                resetUI();
+                resetUI(); // Only reset the entire UI on failure
             }
         }
 
