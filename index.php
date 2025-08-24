@@ -1,11 +1,20 @@
 <?php
+session_start();
 
 // ==============================================================================
 // Configuration
 // ==============================================================================
 
-// 1. IMPORTANT: Replace with your actual Google AI API key.
-$apiKey = 'API_KEY_HERE';
+// 1. Manage API Key
+$apiKey = '';
+// If a new key is submitted via POST, update it in the session.
+if (!empty($_POST['apiKey'])) {
+    $_SESSION['apiKey'] = $_POST['apiKey'];
+}
+// Set the apiKey for the current request from the session.
+if (!empty($_SESSION['apiKey'])) {
+    $apiKey = $_SESSION['apiKey'];
+}
 
 // This will hold the HTML output for the results.
 $resultOutput = '';
@@ -201,7 +210,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
         <h1>Analyze Video with Gemini</h1>
         <form action="" method="post" enctype="multipart/form-data">
             <div>
-                <label for="videoFile">1. Choose Video File:</label>
+                <label for="apiKey">1. Your Google AI API Key:</label>
+                <input type="password" name="apiKey" id="apiKey" style="padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; width: 95%;" value="<?php echo htmlspecialchars($apiKey); ?>" required>
+            </div>
+
+            <div>
+                <label for="videoFile">2. Choose Video File:</label>
                 <input type="file" name="videoFile" id="videoFile" accept="video/*" required>
             </div>
             
