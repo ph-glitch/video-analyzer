@@ -180,9 +180,20 @@ if (isset($_POST['is_ajax'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini Video Analyzer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <style>
+        :root { font-family: 'Inter', sans-serif; }
+        .form-label { font-weight: 500; }
+    </style>
 </head>
 <body class="bg-light-subtle">
     <div class="container py-5" style="max-width: 800px;">
+        <div class="position-absolute top-0 end-0 p-3">
+            <button class="btn btn-outline-secondary" id="theme-toggle" type="button">
+                <i class="bi bi-sun-fill"></i>
+            </button>
+        </div>
         <div class="card shadow-sm">
             <div class="card-header text-center bg-primary text-white">
                 <h1 class="h3 mb-0">Analyze Video with Gemini</h1>
@@ -232,6 +243,37 @@ if (isset($_POST['is_ajax'])) {
     </div>
 
     <script>
+        // --- Theme Toggler Logic ---
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = themeToggle.querySelector('i');
+
+        const getPreferredTheme = () => {
+            if (localStorage.getItem('theme')) {
+                return localStorage.getItem('theme');
+            }
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        };
+
+        const setTheme = (theme) => {
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-bs-theme', 'dark');
+                themeIcon.classList.replace('bi-sun-fill', 'bi-moon-fill');
+            } else {
+                document.documentElement.setAttribute('data-bs-theme', 'light');
+                themeIcon.classList.replace('bi-moon-fill', 'bi-sun-fill');
+            }
+            localStorage.setItem('theme', theme);
+        };
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+            setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        });
+
+        // Set initial theme on page load
+        setTheme(getPreferredTheme());
+
+        // --- Form Submission Logic ---
         const form = document.getElementById('videoForm');
         const submitBtn = document.getElementById('submitBtn');
         const btnText = document.getElementById('btn-text');
