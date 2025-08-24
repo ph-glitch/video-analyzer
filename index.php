@@ -137,7 +137,10 @@ if (isset($_POST['is_ajax'])) {
             if (empty($fileUri) || empty($prompt) || empty($mimeType)) {
                 $response['error'] = 'Missing required data for generating content.';
             } else {
-                $fileDataPayload = ['fileData' => ['mimeType' => $mimeType, 'fileUri' => $fileUri]];
+                // The `generateContent` call requires the full resource URI.
+                $fullFileUrl = "https://generativelanguage.googleapis.com/v1beta/{$fileUri}";
+                $fileDataPayload = ['fileData' => ['mimeType' => $mimeType, 'fileUri' => $fullFileUrl]];
+
                 $modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$selectedModel}:generateContent?key={$apiKey}";
                 $modelPayload = json_encode(['contents' => [['parts' => [['text' => $prompt], $fileDataPayload]]]]);
                 $modelResult = executeCurl($modelUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $modelPayload, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json']]);
