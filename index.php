@@ -92,6 +92,7 @@ if (isset($_POST['is_ajax'])) {
     $uploadMethod = ($fileSizeBytes < $tenMB) ? 'inline' : 'resumable';
 
     $fileDataPayload = null;
+    $fileUri = null;
 
     // --- Upload Logic ---
     if ($uploadMethod === 'resumable') {
@@ -114,13 +115,39 @@ if (isset($_POST['is_ajax'])) {
                 if (!isset($uploadResponse->file->uri)) {
                     $response['error'] = 'File URI not found in the final upload response.';
                 } else {
-                    $fileDataPayload = ['fileData' => ['mimeType' => $mimeType, 'fileUri' => $uploadResponse->file->uri]];
+                    $fileUri = $uploadResponse->file->uri;
                 }
             }
         }
-    } else { // Inline upload
+    } else { // Inline upload is not recommended for videos that need processing, but we handle it.
         $base64Video = base64_encode(file_get_contents($videoFilePath));
+        // This path does not support polling as there is no file URI.
         $fileDataPayload = ['inlineData' => ['mimeType' => $mimeType, 'data' => $base64Video]];
+    }
+
+    // --- Polling for ACTIVE state (only for resumable uploads) ---
+    if ($fileUri) {
+        $fileIsActive = false;
+        $maxRetries = 30; // Timeout after 2.5 minutes (30 * 5 seconds)
+        for ($i = 0; $i < $maxRetries; $i++) {
+            $statusUrl = "https://generativelanguage.googleapis.com/v1beta/{$fileUri}?key={$apiKey}";
+            $statusResult = executeCurl($statusUrl, [CURLOPT_HTTPGET => true, CURLOPT_RETURNTRANSFER => true]);
+            $statusResponse = json_decode($statusResult['body']);
+
+            if (isset($statusResponse->state) && $statusResponse->state === 'ACTIVE') {
+                $fileIsActive = true;
+                $fileDataPayload = ['fileData' => ['mimeType' => $mimeType, 'fileUri' => $fileUri]];
+                break;
+            } elseif (isset($statusResponse->state) && $statusResponse->state === 'FAILED') {
+                $response['error'] = 'Video processing failed on the server.';
+                break;
+            }
+            sleep(5);
+        }
+
+        if (!$fileIsActive && !isset($response['error'])) {
+            $response['error'] = 'File processing timed out. The video may be too long or complex. Please try again later.';
+        }
     }
 
     // --- Content Generation ---
