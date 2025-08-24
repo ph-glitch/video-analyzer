@@ -94,14 +94,6 @@ if (isset($_POST['is_ajax'])) {
     $tenMB = 10 * 1024 * 1024;
     $uploadMethod = ($fileSizeBytes < $tenMB) ? 'inline' : 'resumable';
 
-    $log[] = ['type' => 'list-group', 'items' => [
-        "<b>Original File:</b> {$originalFileName}",
-        "<b>File Size:</b> " . number_format($fileSizeMB, 2) . " MB",
-        "<b>MIME Type:</b> {$mimeType}",
-        "<b>Selected Model:</b> <span class='badge bg-info'>{$selectedModel}</span>",
-        "<b>Upload Method:</b> <span class='badge bg-secondary'>{$uploadMethod}</span>"
-    ]];
-
     $fileDataPayload = null;
     $errorOccurred = false;
 
@@ -188,6 +180,10 @@ if (isset($_POST['is_ajax'])) {
     </style>
 </head>
 <body class="bg-light-subtle">
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <!-- Toasts will be appended here -->
+    </div>
+
     <div class="container py-5" style="max-width: 800px;">
         <div class="position-absolute top-0 end-0 p-3">
             <button class="btn btn-outline-secondary" id="theme-toggle" type="button">
@@ -280,6 +276,34 @@ if (isset($_POST['is_ajax'])) {
         const btnSpinner = document.getElementById('btn-spinner');
         const resultsContainer = document.getElementById('results-container');
         const resultsBody = resultsContainer.querySelector('.card-body');
+        const toastContainer = document.querySelector('.toast-container');
+
+        function showToast(message, type = 'info') {
+            const toastId = 'toast-' + Date.now();
+            const toastHtml = `
+                <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+                    <div class="toast-header">
+                        <span class="p-2 border border-light rounded-circle me-2 bg-${type}"></span>
+                        <strong class="me-auto">${type.charAt(0).toUpperCase() + type.slice(1)}</strong>
+                        <small>Just now</small>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            `;
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement);
+
+            toastElement.addEventListener('hidden.bs.toast', () => {
+                toastElement.remove();
+            });
+
+            toast.show();
+        }
 
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -288,8 +312,10 @@ if (isset($_POST['is_ajax'])) {
             btnText.textContent = 'Analyzing...';
             btnSpinner.classList.remove('d-none');
             submitBtn.disabled = true;
-            resultsContainer.classList.remove('d-none');
-            resultsBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2 mb-0">Processing your video, please wait...</p></div>';
+            resultsContainer.classList.add('d-none'); // Hide previous results
+            resultsBody.innerHTML = '';
+
+            showToast('Processing your video, please wait...', 'info');
 
             // --- 2. Prepare form data ---
             const formData = new FormData(form);
@@ -309,35 +335,27 @@ if (isset($_POST['is_ajax'])) {
                 const result = await response.json();
 
                 // --- 4. Render results ---
-                resultsBody.innerHTML = ''; // Clear spinner
                 if (result.log && Array.isArray(result.log)) {
                     result.log.forEach(entry => {
-                        let logEntryHtml = '';
                         switch (entry.type) {
-                            case 'list-group':
-                                logEntryHtml = '<h5>Processing Details:</h5><ul class="list-group mb-3">';
-                                entry.items.forEach(item => {
-                                    logEntryHtml += `<li class="list-group-item">${item}</li>`;
-                                });
-                                logEntryHtml += '</ul>';
-                                break;
                             case 'gemini-response':
-                                logEntryHtml = `<h5 class="mt-4">Gemini Model Response:</h5><pre class="bg-dark text-white p-3 rounded" style="white-space: pre-wrap; word-wrap: break-word;">${entry.message}</pre>`;
+                                resultsContainer.classList.remove('d-none');
+                                resultsBody.innerHTML = `<h5 class="mt-4">Gemini Model Response:</h5><pre class="bg-dark text-white p-3 rounded" style="white-space: pre-wrap; word-wrap: break-word;">${entry.message}</pre>`;
                                 break;
                             case 'gemini-response-raw':
-                                logEntryHtml = `<h5 class="mt-4 text-warning">Raw Model Response:</h5><pre class="bg-secondary text-white p-3 rounded" style="white-space: pre-wrap; word-wrap: break-word;">${entry.message}</pre>`;
+                                resultsContainer.classList.remove('d-none');
+                                resultsBody.innerHTML = `<h5 class="mt-4 text-warning">Raw Model Response:</h5><pre class="bg-secondary text-white p-3 rounded" style="white-space: pre-wrap; word-wrap: break-word;">${entry.message}</pre>`;
                                 break;
                             default:
-                                logEntryHtml = `<div class="alert alert-${entry.type} mb-2">${entry.message}</div>`;
+                                showToast(entry.message, entry.type);
                         }
-                        resultsBody.innerHTML += logEntryHtml;
                     });
                 } else {
-                    resultsBody.innerHTML = '<div class="alert alert-danger">An unexpected error occurred. Invalid response from server.</div>';
+                    showToast('An unexpected error occurred. Invalid response from server.', 'danger');
                 }
 
             } catch (error) {
-                resultsBody.innerHTML = `<div class="alert alert-danger"><strong>JavaScript Error:</strong> ${error.message}</div>`;
+                showToast(`<strong>JavaScript Error:</strong> ${error.message}`, 'danger');
             } finally {
                 // --- 5. Reset button state ---
                 btnText.textContent = 'Analyze Video';
@@ -346,6 +364,7 @@ if (isset($_POST['is_ajax'])) {
             }
         });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
 </body>
 </html>
 <?php
