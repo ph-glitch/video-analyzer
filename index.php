@@ -19,6 +19,19 @@ if (!empty($_SESSION['apiKey'])) {
 // This will hold the HTML output for the results.
 $resultOutput = '';
 
+// 2. Define available models and get selection from session
+$allowedModels = [
+    'gemini-1.5-flash' => 'Gemini 1.5 Flash (Default)',
+    'gemini-1.5-pro' => 'Gemini 1.5 Pro',
+    'gemini-1.5-flash-latest' => 'Gemini 1.5 Flash (Latest)',
+    'gemini-2.5-flash' => 'Gemini 2.5 Flash',
+    'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite',
+    'gemini-2.5-pro' => 'Gemini 2.5 Pro',
+    'gemini-2.0-flash' => 'Gemini 2.0 Flash',
+    'gemini-2.0-flash-lite' => 'Gemini 2.0 Flash Lite'
+];
+$selectedModel = $_SESSION['selectedModel'] ?? 'gemini-1.5-flash';
+
 // ==============================================================================
 // Helper Function
 // ==============================================================================
@@ -72,6 +85,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
     $videoFilePath = $_FILES['videoFile']['tmp_name'];
     $originalFileName = basename($_FILES['videoFile']['name']);
     $prompt = $_POST['prompt'] ?? 'Describe this video.';
+
+    // Validate the model submitted from the form
+    $submittedModel = $_POST['model'] ?? 'gemini-1.5-flash';
+    if (array_key_exists($submittedModel, $allowedModels)) {
+        $selectedModel = $submittedModel;
+        $_SESSION['selectedModel'] = $selectedModel;
+    }
+
     $fileSizeBytes = $_FILES['videoFile']['size'];
     $mimeType = $_FILES['videoFile']['type'];
 
@@ -148,9 +169,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
 
     // --- Step 2: Generate Content from Video ---
     if (!$errorOccurred) {
-        $resultOutput .= "<div class='alert alert-info'>Step 2: Sending prompt and video to the Gemini model...</div>";
+        $resultOutput .= "<div class='alert alert-info'>Step 2: Sending prompt and video to the <b>{$selectedModel}</b> model...</div>";
 
-        $modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}";
+        $modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$selectedModel}:generateContent?key={$apiKey}";
         $modelPayload = json_encode(['contents' => [['parts' => [['text' => $prompt], $fileDataPayload]]]]);
         $modelResult = executeCurl($modelUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $modelPayload, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json']]);
 
@@ -210,7 +231,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
                     </div>
 
                     <div class="mb-3">
-                        <label for="prompt" class="form-label">3. Enter Your Prompt:</label>
+                        <label for="model" class="form-label">3. Select Gemini Model:</label>
+                        <select name="model" id="model" class="form-select">
+                            <?php foreach ($allowedModels as $modelValue => $modelName): ?>
+                                <option value="<?php echo $modelValue; ?>" <?php if ($modelValue === $selectedModel) echo 'selected'; ?>>
+                                    <?php echo $modelName; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">Choose the model to use for video analysis.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="prompt" class="form-label">4. Enter Your Prompt:</label>
                         <textarea name="prompt" id="prompt" class="form-control" rows="4" required>Summarize this video. Then create a quiz with an answer key based on the information in this video.</textarea>
                     </div>
 
