@@ -192,6 +192,7 @@ if (isset($_POST['is_ajax'])) {
                     <div class="mb-3">
                         <label for="videoFile" class="form-label">2. Choose Video File:</label>
                         <input type="file" name="videoFile" id="videoFile" class="form-control" accept="video/*" required>
+                        <div id="video-duration-display" class="form-text mt-1"></div>
                     </div>
 
                     <div class="mb-3">
@@ -208,7 +209,11 @@ if (isset($_POST['is_ajax'])) {
 
                     <div class="mb-3">
                         <label for="prompt" class="form-label">4. Enter Your Prompt:</label>
-                        <textarea name="prompt" id="prompt" class="form-control" rows="4" required>Summarize this video. Then create a quiz with an answer key based on the information in this video.</textarea>
+                        <textarea name="prompt" id="prompt" class="form-control" rows="8" required>You are a professional narrator. Your task is to create a detailed, continuous narration script for the provided video.
+
+The most important rule is that the length of your spoken narration must be timed to perfectly match the video's total duration. When read aloud at a natural, unhurried pace, the narration should start at the beginning of the video and end exactly when the video ends.
+
+Describe the key actions, the setting, and the overall mood as they happen on screen. Do not include any introductory or concluding text. Do not write "Here is the script," "Certainly," or any other conversational phrases. Your entire response must consist ONLY of the timestamped narration script, starting directly with the first timestamp. The video length is (HH:MM:SS)</textarea>
                     </div>
 
                     <div class="d-grid gap-2">
@@ -255,6 +260,46 @@ if (isset($_POST['is_ajax'])) {
 
         // Set initial theme on page load
         setTheme(getPreferredTheme());
+
+        // --- Video Duration Logic ---
+        const videoFileInput = document.getElementById('videoFile');
+        const durationDisplay = document.getElementById('video-duration-display');
+        const promptTextarea = document.getElementById('prompt');
+        const originalPrompt = promptTextarea.value; // Store the template
+
+        function formatDuration(seconds) {
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
+        videoFileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            promptTextarea.value = originalPrompt; // Reset to template
+            durationDisplay.textContent = '';
+
+            if (file) {
+                const videoElement = document.createElement('video');
+                const objectUrl = URL.createObjectURL(file);
+
+                videoElement.src = objectUrl;
+                videoElement.addEventListener('loadedmetadata', function() {
+                    const duration = videoElement.duration;
+                    const formattedDuration = formatDuration(duration);
+
+                    durationDisplay.textContent = `Video Duration: ${formattedDuration}`;
+                    promptTextarea.value = originalPrompt.replace('(HH:MM:SS)', formattedDuration);
+
+                    URL.revokeObjectURL(objectUrl); // Clean up memory
+                });
+
+                videoElement.addEventListener('error', function() {
+                    durationDisplay.textContent = 'Could not determine video duration.';
+                    URL.revokeObjectURL(objectUrl);
+                });
+            }
+        });
 
         // --- Form Submission Logic ---
         const form = document.getElementById('videoForm');
