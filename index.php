@@ -184,56 +184,62 @@ if (isset($_POST['is_ajax'])) {
         <!-- Toasts will be appended here -->
     </div>
 
-    <div class="container py-5" style="max-width: 800px;">
+    <div class="container-fluid py-5" style="max-width: 1400px;">
         <div class="position-absolute top-0 end-0 p-3">
             <button class="btn btn-outline-secondary" id="theme-toggle" type="button">
                 <i class="bi bi-sun-fill"></i>
             </button>
         </div>
-        <div class="card shadow-sm">
-            <div class="card-header text-center bg-primary text-white">
-                <h1 class="h3 mb-0">Analyze Video with Gemini</h1>
+        <h1 class="text-center mb-4">Analyze Video with Gemini</h1>
+        <div class="row">
+            <div class="col-lg-5">
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        <form id="videoForm" action="" method="post" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="apiKey" class="form-label">1. Your Google AI API Key:</label>
+                                <input type="password" name="apiKey" id="apiKey" class="form-control" value="<?php echo htmlspecialchars($apiKey); ?>" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="videoFile" class="form-label">2. Choose Video File:</label>
+                                <input type="file" name="videoFile" id="videoFile" class="form-control" accept="video/*" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="model" class="form-label">3. Select Gemini Model:</label>
+                                <select name="model" id="model" class="form-select">
+                                    <?php foreach ($allowedModels as $modelValue => $modelName): ?>
+                                        <option value="<?php echo $modelValue; ?>" <?php if ($modelValue === $selectedModel) echo 'selected'; ?>>
+                                            <?php echo $modelName; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text">Choose the model to use for video analysis.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="prompt" class="form-label">4. Enter Your Prompt:</label>
+                                <textarea name="prompt" id="prompt" class="form-control" rows="4" required>Summarize this video. Then create a quiz with an answer key based on the information in this video.</textarea>
+                            </div>
+
+                            <button type="submit" id="submitBtn" class="btn btn-primary w-100 py-2 fw-bold">
+                                <span id="btn-text">Analyze Video</span>
+                                <span id="btn-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="card-body p-4">
-                <form id="videoForm" action="" method="post" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label for="apiKey" class="form-label">1. Your Google AI API Key:</label>
-                        <input type="password" name="apiKey" id="apiKey" class="form-control" value="<?php echo htmlspecialchars($apiKey); ?>" required>
+            <div class="col-lg-7">
+                <div id="results-container" class="card shadow-sm d-none h-100">
+                    <div class="card-header fw-bold">
+                        Results
                     </div>
-
-                    <div class="mb-3">
-                        <label for="videoFile" class="form-label">2. Choose Video File:</label>
-                        <input type="file" name="videoFile" id="videoFile" class="form-control" accept="video/*" required>
+                    <div class="card-body">
+                        <!-- JS will populate this -->
                     </div>
-
-                    <div class="mb-3">
-                        <label for="model" class="form-label">3. Select Gemini Model:</label>
-                        <select name="model" id="model" class="form-select">
-                            <?php foreach ($allowedModels as $modelValue => $modelName): ?>
-                                <option value="<?php echo $modelValue; ?>" <?php if ($modelValue === $selectedModel) echo 'selected'; ?>>
-                                    <?php echo $modelName; ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="form-text">Choose the model to use for video analysis.</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="prompt" class="form-label">4. Enter Your Prompt:</label>
-                        <textarea name="prompt" id="prompt" class="form-control" rows="4" required>Summarize this video. Then create a quiz with an answer key based on the information in this video.</textarea>
-                    </div>
-
-                    <button type="submit" id="submitBtn" class="btn btn-primary w-100 py-2 fw-bold">
-                        <span id="btn-text">Analyze Video</span>
-                        <span id="btn-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <div id="results-container" class="card mt-4 shadow-sm d-none">
-            <div class="card-body">
-                <!-- JS will populate this -->
+                </div>
             </div>
         </div>
     </div>
