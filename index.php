@@ -103,7 +103,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
             $uploadUrl = $startResult['headers']['x-goog-upload-url'][0];
             $resultOutput .= "<p><strong>Step 1.2:</strong> Uploading video data...</p>";
 
-            $uploadResult = executeCurl($uploadUrl, [CURLOPT_CUSTOMREQUEST => 'POST', CURLOPT_POSTFIELDS => file_get_contents($videoFilePath), CURLOPT_HTTPHEADER => ["Content-Length: {$fileSizeBytes}", 'X-Goog-Upload-Offset: 0', 'X-Goog-Upload-Command: upload, finalize'], CURLOPT_RETURNTRANSFER => true]);
+            $uploadHeaders = [
+                "Content-Type: {$mimeType}",
+                "Content-Length: {$fileSizeBytes}",
+                'X-Goog-Upload-Offset: 0',
+                'X-Goog-Upload-Command: upload, finalize'
+            ];
+            $uploadResult = executeCurl($uploadUrl, [CURLOPT_CUSTOMREQUEST => 'POST', CURLOPT_POSTFIELDS => file_get_contents($videoFilePath), CURLOPT_HTTPHEADER => $uploadHeaders, CURLOPT_RETURNTRANSFER => true]);
 
             if ($uploadResult['httpCode'] !== 200) {
                 $resultOutput .= "<p class='error'><strong>Error:</strong> Failed to upload video data. Response: " . htmlspecialchars($uploadResult['body']) . "</p>";
