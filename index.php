@@ -72,9 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
     $videoFilePath = $_FILES['videoFile']['tmp_name'];
     $originalFileName = basename($_FILES['videoFile']['name']);
     $prompt = $_POST['prompt'] ?? 'Describe this video.';
-    $uploadMethod = $_POST['uploadMethod'] ?? 'resumable';
     $fileSizeBytes = $_FILES['videoFile']['size'];
     $mimeType = $_FILES['videoFile']['type'];
+
+    // --- Automatically determine upload method based on file size (10MB threshold) ---
+    $tenMB = 10 * 1024 * 1024;
+    $uploadMethod = ($fileSizeBytes < $tenMB) ? 'inline' : 'resumable';
     $fileSizeMB = $fileSizeBytes / (1024 * 1024);
 
     $resultOutput .= "<h3>Processing Request...</h3>";
@@ -220,19 +223,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['videoFile']) && $_FI
             </div>
             
             <div>
-                <label for="prompt">2. Enter Your Prompt:</label>
+                <label for="prompt">3. Enter Your Prompt:</label>
                 <textarea name="prompt" id="prompt" required>Summarize this video. Then create a quiz with an answer key based on the information in this video.</textarea>
-            </div>
-
-            <div>
-                <label>3. Select Upload Method:</label>
-                <div class="radio-group">
-                    <input type="radio" name="uploadMethod" value="inline" id="inline"> 
-                    <label for="inline">Inline (&lt; 20MB)</label>
-                    
-                    <input type="radio" name="uploadMethod" value="resumable" id="resumable" checked> 
-                    <label for="resumable">Resumable (Recommended)</label>
-                </div>
             </div>
 
             <button type="submit">Analyze Video</button>
