@@ -175,6 +175,7 @@ if (isset($_POST['is_ajax'])) {
             break;
 
         case 'convert_to_audio':
+            set_time_limit(0); // Allow script to run indefinitely for this task
             $textToConvert = $_POST['textToConvert'] ?? '';
             $voice = $_POST['voice'] ?? 'Kore'; // Default voice
             $ttsModel = 'gemini-2.5-flash-preview-tts';
