@@ -76,7 +76,15 @@ if (isset($_POST['is_ajax'])) {
         case 'upload':
             if (!isset($_FILES['videoFile']) || $_FILES['videoFile']['error'] !== UPLOAD_ERR_OK) {
                  $uploadError = $_FILES['videoFile']['error'] ?? UPLOAD_ERR_NO_FILE;
-                 $errors = [ /* ... error mapping ... */ ];
+                 $errors = [
+                     UPLOAD_ERR_INI_SIZE => 'The uploaded file exceeds the upload_max_filesize directive in php.ini.',
+                     UPLOAD_ERR_FORM_SIZE => 'The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form.',
+                     UPLOAD_ERR_PARTIAL => 'The uploaded file was only partially uploaded.',
+                     UPLOAD_ERR_NO_FILE => 'No file was uploaded.',
+                     UPLOAD_ERR_NO_TMP_DIR => 'Missing a temporary folder for uploads.',
+                     UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk. Check permissions for the temporary upload directory.',
+                     UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the file upload.'
+                 ];
                  $response['error'] = 'File Upload Error: ' . ($errors[$uploadError] ?? 'Unknown error');
             } else {
                 $videoFilePath = $_FILES['videoFile']['tmp_name'];
