@@ -16,6 +16,18 @@ $allowedModels = [
     'gemini-2.0-flash' => 'Gemini 2.0 Flash',
     'gemini-2.0-flash-lite' => 'Gemini 2.0 Flash Lite'
 ];
+$allowedVoices = [
+    'Zephyr' => 'Zephyr (Bright)',
+    'Puck' => 'Puck (Upbeat)',
+    'Charon' => 'Charon (Informative)',
+    'Kore' => 'Kore (Firm)',
+    'Fenrir' => 'Fenrir (Excitable)',
+    'Leda' => 'Leda (Youthful)',
+    'Orus' => 'Orus (Firm)',
+    'Aoede' => 'Aoede (Breezy)',
+    'Callirrhoe' => 'Callirrhoe (Easy-going)',
+];
+
 
 /**
  * A helper function to execute a cURL request.
@@ -162,6 +174,43 @@ if (isset($_POST['is_ajax'])) {
             }
             break;
 
+        case 'convert_to_audio':
+            $textToConvert = $_POST['textToConvert'] ?? '';
+            $voice = $_POST['voice'] ?? 'Kore'; // Default voice
+            $ttsModel = 'gemini-2.5-flash-preview-tts';
+
+            if (empty($textToConvert)) {
+                $response['error'] = 'No text provided for audio conversion.';
+            } else {
+                $ttsUrl = "https://generativelanguage.googleapis.com/v1beta/models/{$ttsModel}:generateContent?key={$apiKey}";
+                $ttsPayload = json_encode([
+                    'model' => $ttsModel,
+                    'contents' => [['parts' => [['text' => $textToConvert]]]],
+                    'generationConfig' => [
+                        'responseModalities' => ['AUDIO'],
+                        'speechConfig' => [
+                            'voiceConfig' => [
+                                'prebuiltVoiceConfig' => ['voiceName' => $voice]
+                            ]
+                        ]
+                    ]
+                ]);
+
+                $ttsResult = executeCurl($ttsUrl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $ttsPayload, CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json']]);
+                $ttsResponse = json_decode($ttsResult['body']);
+
+                if ($ttsResult['httpCode'] !== 200) {
+                    $response['error'] = "Failed to get a response from the TTS model. Response: " . htmlspecialchars($ttsResult['body']);
+                } elseif (!empty($ttsResponse->candidates[0]->content->parts[0]->inlineData->data)) {
+                    $response['success'] = true;
+                    $response['audioData'] = $ttsResponse->candidates[0]->content->parts[0]->inlineData->data;
+                    $response['error'] = null;
+                } else {
+                    $response['error'] = "Could not find audio data in the model's response. Raw response: " . htmlspecialchars(print_r($ttsResponse, true));
+                }
+            }
+            break;
+
         default:
             $response['error'] = 'Invalid action specified.';
             break;
@@ -246,6 +295,23 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
                         <button type="button" id="downloadBtn" class="btn btn-success py-2 fw-bold d-none">
                             <i class="bi bi-download me-2"></i> Download .txt file
                         </button>
+
+                        <div id="audioConversionWrapper" class="d-none">
+                            <div class="mb-3">
+                                <label for="voice" class="form-label">5. Select a Voice for the Audio:</label>
+                                <select name="voice" id="voice" class="form-select">
+                                    <?php foreach ($allowedVoices as $voiceValue => $voiceName): ?>
+                                        <option value="<?php echo $voiceValue; ?>">
+                                            <?php echo $voiceName; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <button type="button" id="audioBtn" class="btn btn-info py-2 fw-bold w-100">
+                                <span id="audio-btn-text"><i class="bi bi-sound-wave me-2"></i>Convert to Audio File</span>
+                                <span id="audio-btn-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -366,6 +432,7 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
             submitBtn.disabled = false;
             submitBtn.classList.remove('d-none');
             downloadBtn.classList.add('d-none');
+            document.getElementById('audioConversionWrapper').classList.add('d-none');
             if(pollingInterval) clearInterval(pollingInterval);
         }
 
@@ -429,9 +496,10 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
                 const result = await response.json();
                 if (result.success && result.responseText) {
                     lastResponseText = result.responseText;
-                    // On success, hide the submit button and show the download button
+                    // On success, hide the submit button and show the download and audio buttons
                     submitBtn.classList.add('d-none');
                     downloadBtn.classList.remove('d-none');
+                    document.getElementById('audioConversionWrapper').classList.remove('d-none');
                     // And reset the state of the (now hidden) submit button
                     btnText.textContent = 'Analyze Video';
                     btnSpinner.classList.add('d-none');
@@ -499,6 +567,113 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
             URL.revokeObjectURL(url);
             showToast('Download started.', 'info');
         });
+
+        const audioBtn = document.getElementById('audioBtn');
+        const audioBtnText = document.getElementById('audio-btn-text');
+        const audioBtnSpinner = document.getElementById('audio-btn-spinner');
+
+        function createWaveFile(base64String) {
+            try {
+                const binaryString = window.atob(base64String);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                const sampleRate = 24000;
+                const numChannels = 1;
+                const bitsPerSample = 16;
+                const dataSize = len;
+                const blockAlign = (numChannels * bitsPerSample) / 8;
+                const byteRate = sampleRate * blockAlign;
+
+                const buffer = new ArrayBuffer(44 + dataSize);
+                const view = new DataView(buffer);
+
+                // RIFF header
+                writeString(view, 0, 'RIFF');
+                view.setUint32(4, 36 + dataSize, true);
+                writeString(view, 8, 'WAVE');
+                // fmt chunk
+                writeString(view, 12, 'fmt ');
+                view.setUint32(16, 16, true); // Subchunk1Size
+                view.setUint16(20, 1, true); // AudioFormat (PCM)
+                view.setUint16(22, numChannels, true);
+                view.setUint32(24, sampleRate, true);
+                view.setUint32(28, byteRate, true);
+                view.setUint16(32, blockAlign, true);
+                view.setUint16(34, bitsPerSample, true);
+                // data chunk
+                writeString(view, 36, 'data');
+                view.setUint32(40, dataSize, true);
+
+                // Write PCM data
+                new Uint8Array(buffer, 44).set(bytes);
+
+                return new Blob([view], { type: 'audio/wav' });
+            } catch (e) {
+                console.error("Error creating WAV file:", e);
+                showToast(`Error creating audio file: ${e.message}`, 'danger');
+                return null;
+            }
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+
+        audioBtn.addEventListener('click', async function() {
+            if (!lastResponseText) {
+                showToast('No generated text available to convert.', 'warning');
+                return;
+            }
+
+            audioBtn.disabled = true;
+            audioBtnSpinner.classList.remove('d-none');
+            audioBtnText.textContent = 'Converting...';
+
+            const formData = new FormData();
+            formData.append('is_ajax', '1');
+            formData.append('action', 'convert_to_audio');
+            formData.append('textToConvert', lastResponseText);
+            formData.append('apiKey', document.getElementById('apiKey').value);
+            formData.append('voice', document.getElementById('voice').value);
+
+            try {
+                showToast('Sending text to Speech API...', 'info');
+                const response = await fetch('index.php', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success && result.audioData) {
+                    showToast('Audio received, creating WAV file...', 'success');
+                    const waveBlob = createWaveFile(result.audioData);
+                    if (waveBlob) {
+                        const url = URL.createObjectURL(waveBlob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'gemini-narration.wav';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        showToast('Audio download started.', 'info');
+                    }
+                } else {
+                    throw new Error(result.error || 'Audio conversion failed.');
+                }
+            } catch (error) {
+                showToast(`Audio Conversion Error: ${error.message}`, 'danger');
+            } finally {
+                audioBtn.disabled = false;
+                audioBtnSpinner.classList.add('d-none');
+                audioBtnText.innerHTML = '<i class="bi bi-sound-wave me-2"></i>Convert to Audio File';
+            }
+        });
+
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
 </body>
