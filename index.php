@@ -235,7 +235,7 @@ if (isset($_POST['is_ajax'])) {
 
 The most important rule is that the length of your spoken narration must be timed to perfectly match the video's total duration. When read aloud at a natural, unhurried pace, the narration should start at the beginning of the video and end exactly when the video ends.
 
-Describe the key actions, the setting, and the overall mood as they happen on screen. Do not include any introductory or concluding text. Do not write "Here is the script," "Certainly," or any other conversational phrases. Your entire response must consist ONLY of the timestamped narration script, starting directly with the first timestamp. The video length is (HH:MM:SS)</textarea>
+Describe the key actions, the setting, and the overall mood as they happen on screen. Do not include any introductory or concluding text. Do not write "Here is the script," "Certainly," or any other conversational phrases. Your entire response must consist ONLY of the narration script, starting directly with the first timestamp. The video length is (HH:MM:SS)</textarea>
                     </div>
 
                     <div class="d-grid gap-2">
