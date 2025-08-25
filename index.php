@@ -138,12 +138,12 @@ if (isset($_POST['is_ajax'])) {
             $prompt = $_POST['prompt'] ?? '';
             $mimeType = $_POST['mimeType'] ?? '';
 
-            $submittedModel = $_POST['model'] ?? 'gemini-1.5-flash';
+            $submittedModel = $_POST['model'] ?? 'gemini-2.5-flash';
              if (array_key_exists($submittedModel, $allowedModels)) {
                 $selectedModel = $submittedModel;
                 $_SESSION['selectedModel'] = $selectedModel;
             } else {
-                $selectedModel = 'gemini-1.5-flash';
+                $selectedModel = 'gemini-2.5-flash';
             }
 
             if (empty($fileUri) || empty($prompt) || empty($mimeType)) {
@@ -222,7 +222,7 @@ if (isset($_POST['is_ajax'])) {
 } else {
     // --- HTML PAGE LOGIC (Handles normal browser requests) ---
     $apiKey = $_SESSION['apiKey'] ?? '';
-    $selectedModel = $_SESSION['selectedModel'] ?? 'gemini-1.5-flash';
+    $selectedModel = $_SESSION['selectedModel'] ?? 'gemini-2.5-flash';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -281,10 +281,9 @@ if (isset($_POST['is_ajax'])) {
                     <div class="mb-3">
                         <label for="prompt" class="form-label">4. Enter Your Prompt:</label>
                         <textarea name="prompt" id="prompt" class="form-control" rows="8" required>You are a professional narrator. Your task is to create a detailed, continuous narration script for the provided video.
-
-The most important rule is that the length of your spoken narration must be timed to perfectly match the video's total duration. When read aloud at a natural, unhurried pace, the narration should start at the beginning of the video and end exactly when the video ends.
-
-Describe the key actions, the setting, and the overall mood as they happen on screen. Do not include any introductory or concluding text. Do not write "Here is the script," "Certainly," or any other conversational phrases. Your entire response must consist ONLY of the timestamped narration script, starting directly with the first timestamp. The video length is (HH:MM:SS)</textarea>
+The most important rule is that the length of your spoken narration must be timed to perfectly match the video's total duration. When read aloud at a natural, unhurried pace (approximately 150 words per minute), the narration should start at the beginning of the video and end exactly when the video ends.
+Break the script into timed segments that align with key visual changes, actions, or transitions in the video. Each segment must include a precise timestamp in [HH:MM:SS] format, starting from [00:00:00] and progressing sequentially without gaps or overlaps. The final segment must end exactly at the video's total length of (HH:MM:SS). Estimate the duration of each segment based on the narration length and speaking pace to ensure the total adds up accurately.
+Describe the key actions, the setting, and the overall mood as they happen on screen in each timed segment. Do not include any introductory or concluding text. Do not write "Here is the script," "Certainly," or any other conversational phrases. Your entire response must consist ONLY of the timestamped narration script, starting directly with the first timestamp [00:00:00].</textarea>
                     </div>
 
                     <div class="d-grid gap-2">
