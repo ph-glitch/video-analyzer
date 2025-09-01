@@ -258,6 +258,7 @@ if (isset($_POST['is_ajax'])) {
                     animation: {
                         'fade-in': 'fadeIn 1s ease-in-out',
                         'background-pan': 'backgroundPan 15s linear infinite',
+                        'shimmer': 'shimmer 2s linear infinite',
                     },
                     keyframes: {
                         fadeIn: {
@@ -268,6 +269,10 @@ if (isset($_POST['is_ajax'])) {
                             '0%': { background-position: '0% 50%' },
                             '50%': { background-position: '100% 50%' },
                             '100%': { background-position: '0% 50%' },
+                        },
+                        shimmer: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(100%)' },
                         }
                     }
                 }
@@ -302,18 +307,9 @@ if (isset($_POST['is_ajax'])) {
             box-shadow: 0 0 0 3px rgba(233, 64, 87, 0.3);
         }
         .form-input::placeholder { color: #8a8a8a; }
-        select.form-input {
-             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-             background-position: right 0.5rem center;
-             background-repeat: no-repeat;
-             background-size: 1.5em 1.5em;
-             padding-right: 2.5rem;
-             -webkit-appearance: none;
-             -moz-appearance: none;
-             appearance: none;
-        }
+
         .btn-primary {
-            @apply w-full flex justify-center items-center px-6 py-4 border border-transparent text-base font-bold rounded-xl shadow-lg text-white transition duration-300 ease-in-out;
+            @apply relative overflow-hidden w-full flex justify-center items-center px-6 py-4 border border-transparent text-base font-bold rounded-xl shadow-lg text-white transition duration-300 ease-in-out;
             background: linear-gradient(90deg, #E94057, #8A2387);
             background-size: 200% 200%;
         }
@@ -322,12 +318,22 @@ if (isset($_POST['is_ajax'])) {
             box-shadow: 0 10px 20px rgba(0,0,0,0.25);
             background-position: right center;
         }
-         .btn-primary:disabled {
+        .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: translateY(0);
             box-shadow: none;
         }
+        .btn-primary .shimmer {
+            @apply absolute top-0 left-0 w-full h-full;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transform: translateX(-100%);
+            transition: none;
+        }
+        .btn-primary:hover .shimmer {
+            animation: shimmer 2s infinite;
+        }
+
         .btn-secondary {
             @apply w-full flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm transition-colors duration-200;
             background: rgba(255, 255, 255, 0.1);
@@ -335,6 +341,22 @@ if (isset($_POST['is_ajax'])) {
         }
          .btn-secondary:hover {
             background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Custom Dropdown */
+        .custom-dropdown-button {
+            @apply form-input w-full rounded-lg p-3 flex justify-between items-center cursor-pointer;
+        }
+        .custom-dropdown-options {
+            @apply absolute w-full mt-2 glass-panel rounded-lg shadow-lg z-10 overflow-hidden;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .custom-dropdown-option {
+            @apply px-4 py-3 text-white/80 hover:bg-white/10 cursor-pointer transition-colors duration-150;
+        }
+        .custom-dropdown-option.selected {
+            @apply bg-pink-500/50 font-semibold text-white;
         }
     </style>
 </head>
@@ -367,13 +389,26 @@ if (isset($_POST['is_ajax'])) {
                     <!-- Step 3 -->
                     <div class="space-y-2">
                         <label for="model" class="text-lg font-semibold text-white flex items-center"><span class="text-2xl mr-4">🧠</span>Select Gemini Model:</label>
-                        <select name="model" id="model" class="form-input w-full rounded-lg p-3">
-                            <?php foreach ($allowedModels as $modelValue => $modelName): ?>
-                                <option value="<?php echo $modelValue; ?>" <?php if ($modelValue === $selectedModel) echo 'selected'; ?>>
-                                    <?php echo $modelName; ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="relative" data-custom-dropdown>
+                            <select name="model" id="model" class="hidden">
+                                <?php foreach ($allowedModels as $modelValue => $modelName): ?>
+                                    <option value="<?php echo $modelValue; ?>" <?php if ($modelValue === $selectedModel) echo 'selected'; ?>>
+                                        <?php echo $modelName; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" class="custom-dropdown-button">
+                                <span class="custom-dropdown-label truncate"></span>
+                                <svg class="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                            <ul class="custom-dropdown-options hidden">
+                                <?php foreach ($allowedModels as $modelValue => $modelName): ?>
+                                    <li data-value="<?php echo $modelValue; ?>" class="custom-dropdown-option">
+                                        <?php echo $modelName; ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
                     </div>
 
                     <!-- Step 4 -->
@@ -387,6 +422,7 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
 
                     <div class="pt-4 space-y-4">
                          <button type="submit" id="submitBtn" class="btn-primary">
+                            <span class="shimmer"></span>
                             <span id="btn-text" class="mx-auto">Analyze Video</span>
                             <svg id="btn-spinner" class="animate-spin h-5 w-5 text-white hidden mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -399,11 +435,24 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
                                 <div class="space-y-4">
                                     <div class="space-y-2">
                                         <label for="voice" class="text-lg font-semibold text-white flex items-center"><span class="text-2xl mr-4">🗣️</span>Select a Voice for the Audio:</label>
-                                        <select name="voice" id="voice" class="form-input w-full mt-2 rounded-lg p-3">
-                                            <?php foreach ($allowedVoices as $voiceValue => $voiceName): ?>
-                                                <option value="<?php echo $voiceValue; ?>"><?php echo $voiceName; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
+                                         <div class="relative" data-custom-dropdown>
+                                            <select name="voice" id="voice" class="hidden">
+                                                <?php foreach ($allowedVoices as $voiceValue => $voiceName): ?>
+                                                    <option value="<?php echo $voiceValue; ?>"><?php echo $voiceName; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="custom-dropdown-button">
+                                                <span class="custom-dropdown-label truncate"></span>
+                                                 <svg class="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                            </button>
+                                            <ul class="custom-dropdown-options hidden">
+                                                <?php foreach ($allowedVoices as $voiceValue => $voiceName): ?>
+                                                    <li data-value="<?php echo $voiceValue; ?>" class="custom-dropdown-option">
+                                                        <?php echo $voiceName; ?>
+                                                    </li>
+                                                <?php endforeach; ?>
+                                            </ul>
+                                        </div>
                                     </div>
                                     <button type="button" id="audioBtn" class="btn-secondary">
                                         <span id="audio-btn-text" class="flex items-center justify-center">Convert to Audio File</span>
@@ -425,6 +474,7 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
     </div>
 
     <script>
+        // --- Main Form & API Logic ---
         const form = document.getElementById('videoForm');
         const submitBtn = document.getElementById('submitBtn');
         const btnText = document.getElementById('btn-text');
@@ -576,6 +626,7 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
             }
         });
 
+        // --- Video Duration Logic ---
         const videoFileInput = document.getElementById('videoFile');
         const durationDisplay = document.getElementById('video-duration-display');
         const promptTextarea = document.getElementById('prompt');
@@ -609,6 +660,7 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
             }
         });
 
+        // --- Download & Audio Logic ---
         downloadBtn.addEventListener('click', function() {
             if (!lastResponseText) { showToast('No response to download.', 'warning'); return; }
             const blob = new Blob([lastResponseText], { type: 'text/plain' });
@@ -705,6 +757,68 @@ Describe the key actions, the setting, and the overall mood as they happen on sc
                 setAudioLoading(false);
             }
         });
+
+        // --- Custom Dropdown Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('[data-custom-dropdown]').forEach(setupDropdown);
+            document.addEventListener('click', (e) => {
+                const isDropdownButton = e.target.matches('.custom-dropdown-button, .custom-dropdown-button *');
+                if (!isDropdownButton && e.target.closest('[data-custom-dropdown]') === null) {
+                    closeAllDropdowns();
+                }
+            });
+        });
+
+        function setupDropdown(dropdown) {
+            const nativeSelect = dropdown.querySelector('select');
+            const dropdownButton = dropdown.querySelector('.custom-dropdown-button');
+            const dropdownLabel = dropdown.querySelector('.custom-dropdown-label');
+            const optionsList = dropdown.querySelector('.custom-dropdown-options');
+            const options = optionsList.querySelectorAll('.custom-dropdown-option');
+
+            // Set initial value
+            const selectedOption = nativeSelect.options[nativeSelect.selectedIndex];
+            if (selectedOption) {
+                dropdownLabel.textContent = selectedOption.textContent;
+                updateSelectedOptionUI(options, selectedOption.value);
+            }
+
+            dropdownButton.addEventListener('click', () => {
+                const isOpen = !optionsList.classList.contains('hidden');
+                closeAllDropdowns();
+                if (!isOpen) {
+                    optionsList.classList.remove('hidden');
+                }
+            });
+
+            options.forEach(option => {
+                option.addEventListener('click', () => {
+                    const value = option.getAttribute('data-value');
+                    const label = option.textContent;
+                    nativeSelect.value = value;
+                    dropdownLabel.textContent = label;
+                    nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    updateSelectedOptionUI(options, value);
+                    closeAllDropdowns();
+                });
+            });
+        }
+
+        function closeAllDropdowns() {
+            document.querySelectorAll('.custom-dropdown-options').forEach(list => {
+                list.classList.add('hidden');
+            });
+        }
+
+        function updateSelectedOptionUI(options, value) {
+            options.forEach(opt => {
+                if (opt.getAttribute('data-value') === value) {
+                    opt.classList.add('selected');
+                } else {
+                    opt.classList.remove('selected');
+                }
+            });
+        }
     </script>
 </body>
 </html>
